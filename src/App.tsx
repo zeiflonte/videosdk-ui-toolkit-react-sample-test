@@ -10,7 +10,7 @@ function App() {
   const authEndpoint = "http://localhost/api/calls/signature";
 
   const [sessionName, setSessionName] = useState<string>("");
-  const [sessionKey, setSessionKey] = useState<string>("");
+  const [sessionPassword, setSessionPassword] = useState<string>(""); 
 
   const role = 1;
 
@@ -22,6 +22,7 @@ function App() {
       body: JSON.stringify({ email: "il@test.by", password: "12345678" }),
       credentials: "include",
     });
+    
     const loginData = await loginRes.json();
     const bearer = loginData[0]?.access_token;
     if (!bearer) {
@@ -29,10 +30,14 @@ function App() {
       return;
     }
 
-    // 2) collect request body for signature: add fields only if they are filled
-    const payload: any = { role, videoWebRtcMode: 1 };
-    if (sessionName.trim()) payload.sessionName = sessionName.trim();
-    if (sessionKey.trim()) payload.sessionKey = sessionKey.trim();
+    // 2) Подготовка данных для подписи
+    const payload = {
+      role,
+      sessionName: sessionName.trim(),
+      sessionKey: sessionPassword.trim(), // Передаем пароль как sessionKey
+      userIdentity: "1",
+      videoWebRtcMode: 1
+    };
 
     const jwtRes = await fetch(authEndpoint, {
       method: "POST",
@@ -43,6 +48,7 @@ function App() {
       },
       body: JSON.stringify(payload),
     });
+    
     const jwtData = await jwtRes.json();
     if (!jwtData.signature) {
       console.error("JWT fetch failed or no signature");
@@ -55,35 +61,34 @@ function App() {
   function joinSession(signature: string) {
     if (!sessionContainer.current) return;
 
-    // Basic config
-    const baseConfig: CustomizationOptions = {
+    const config: CustomizationOptions = {
       videoSDKJWT: signature,
-      userName: "React",
-      sessionPasscode: "123",
+      sessionName: sessionName.trim(), 
+      sessionPasscode: sessionPassword.trim(),
+      userName: "react",
+      sessionIdleTimeoutMins: 15, // Set timeout to 15 minutes or higher value as needed
       featuresOptions: {
         preview: { enable: true },
         virtualBackground: {
           enable: true,
           virtualBackgrounds: [
             {
-              url:
-                "https://images.unsplash.com/photo-1715490187538-30a365fa05bd?q=80&w=1945&auto=format&fit=crop",
+              url: "https://images.unsplash.com/photo-1715490187538-30a365fa05bd?q=80&w=1945&auto=format&fit=crop",
             },
           ],
         },
       },
     };
 
-    // Collect the final one, substitute sessionName/key only if it exists
-    const finalConfig: any = { ...baseConfig };
-    if (sessionName.trim()) finalConfig.sessionName = sessionName.trim();
-    if (sessionKey.trim()) finalConfig.sessionKey = sessionKey.trim();
-
-    uitoolkit.joinSession(sessionContainer.current, finalConfig);
+    console.log("Joining with config:", config);
+    
+    uitoolkit.joinSession(sessionContainer.current, config);
+    
     uitoolkit.onSessionClosed(() => {
       console.log("session closed");
       document.getElementById("join-flow")!.style.display = "block";
     });
+    
     uitoolkit.onSessionDestroyed(() => {
       console.log("session destroyed");
       uitoolkit.destroy();
@@ -105,12 +110,12 @@ function App() {
             />
           </div>
           <div className="form-group">
-            <label>Session Key:</label>
+            <label>Session Password:</label> {}
             <input
               type="text"
-              value={sessionKey}
-              onChange={(e) => setSessionKey(e.target.value)}
-              placeholder="Enter sessionKey"
+              value={sessionPassword}
+              onChange={(e) => setSessionPassword(e.target.value)}
+              placeholder="Enter session password"
             />
           </div>
           <button onClick={getVideoSDKJWT}>Join Session</button>
