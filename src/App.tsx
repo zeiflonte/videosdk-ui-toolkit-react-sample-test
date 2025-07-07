@@ -1,98 +1,212 @@
-import React, { useRef, useState } from "react";
-import uitoolkit, { CustomizationOptions } from "@zoom/videosdk-ui-toolkit";
-import "@zoom/videosdk-ui-toolkit/dist/videosdk-ui-toolkit.css";
+import React, { useRef, useState, useEffect } from "react";
+import ZoomVideo, { VideoQuality } from "@zoom/videosdk";
 import "./App.css";
 
+// Environment variables configuration
+declare const process: {
+  env: {
+    REACT_APP_LOGIN_ENDPOINT?: string;
+    REACT_APP_AUTH_ENDPOINT?: string;
+    REACT_APP_TEST_EMAIL?: string;
+    REACT_APP_TEST_PASSWORD?: string;
+  };
+};
+
+interface User {
+  userId: number;
+  bVideoOn: boolean;
+}
+
+interface JWTResponse {
+  signature?: string;
+  access_token?: string;
+}
+
 function App() {
-  const sessionContainer = useRef<HTMLDivElement | null>(null);
+  const sessionContainer = useRef<HTMLDivElement>(null);
+  const [client, setClient] = useState<ReturnType<typeof ZoomVideo.createClient> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sessionName, setSessionName] = useState("");
+  const [sessionPassword, setSessionPassword] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [isRecordingLoading, setIsRecordingLoading] = useState(false);
+  const [, setParticipants] = useState<User[]>([]);
 
-  const loginEndpoint = "http://localhost/api/login";
-  const authEndpoint = "http://localhost/api/calls/signature";
-
-  const [sessionName, setSessionName] = useState<string>("");
-  const [sessionPassword, setSessionPassword] = useState<string>(""); 
-
+  const loginEndpoint =  "http://localhost/api/login";
+  const authEndpoint =  "http://localhost/api/calls/signature";
   const role = 1;
 
-  async function getVideoSDKJWT() {
-    // 1) login
-    const loginRes = await fetch(loginEndpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ email: "il@test.by", password: "12345678" }),
-      credentials: "include",
-    });
-    
-    const loginData = await loginRes.json();
-    const bearer = loginData[0]?.access_token;
-    if (!bearer) {
-      console.error("Login failed or no access_token");
-      return;
-    }
+  // Initialize the Zoom Video SDK client
+  useEffect(() => {
+    const videoClient = ZoomVideo.createClient();
+    setClient(videoClient);
+    return () => {
+      if ('destroy' in videoClient) {
+        (videoClient as { destroy: () => void }).destroy();
+      }
+    };
+  }, []);
 
-    // 2) Подготовка данных для подписи
+  // Fetch JWT and join session
+  async function getVideoSDKJWT() {
+    if (!client) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // 1) Login
+      const loginRes = await fetch(loginEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ email: "il@test.by", password: "12345678" }),
+        credentials: "include",
+      });
+      
+      if (!loginRes.ok) throw new Error('Login failed');
+      
+      const loginData: JWTResponse[] = await loginRes.json();
+      const bearer = loginData[0]?.access_token;
+      if (!bearer) {
+        throw new Error('No access token received');
+      }
+
+    // 2) Prepare payload for signature
     const payload = {
       role,
       sessionName: sessionName.trim(),
-      sessionKey: sessionPassword.trim(), // Передаем пароль как sessionKey
+      sessionKey: sessionPassword.trim(),
       userIdentity: "1",
-      videoWebRtcMode: 1
+      videoWebRtcMode: 1,
     };
 
-    const jwtRes = await fetch(authEndpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `Bearer ${bearer}`,
-      },
-      body: JSON.stringify(payload),
-    });
-    
-    const jwtData = await jwtRes.json();
-    if (!jwtData.signature) {
-      console.error("JWT fetch failed or no signature");
-      return;
-    }
+      const jwtRes = await fetch(authEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${bearer}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!jwtRes.ok) throw new Error('JWT request failed');
+      
+      const jwtData: JWTResponse = await jwtRes.json();
+      if (!jwtData.signature) {
+        throw new Error('No signature received');
+      }
 
-    joinSession(jwtData.signature);
+      await joinSession(jwtData.signature);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function joinSession(signature: string) {
-    if (!sessionContainer.current) return;
+  // Join session and set up event listeners
+  async function joinSession(signature: string) {
+    if (!client || !sessionContainer.current) return;
 
-    const config: CustomizationOptions = {
-      videoSDKJWT: signature,
-      sessionName: sessionName.trim(), 
-      sessionPasscode: sessionPassword.trim(),
-      userName: "react",
-      sessionIdleTimeoutMins: 15, // Set timeout to 15 minutes or higher value as needed
-      featuresOptions: {
-        preview: { enable: true },
-        virtualBackground: {
-          enable: true,
-          virtualBackgrounds: [
-            {
-              url: "https://images.unsplash.com/photo-1715490187538-30a365fa05bd?q=80&w=1945&auto=format&fit=crop",
-            },
-          ],
-        },
-      },
-    };
+    await client.init("en-US", "Global");
+    await client.join(sessionName.trim(), signature, "react", sessionPassword.trim());
 
-    console.log("Joining with config:", config);
-    
-    uitoolkit.joinSession(sessionContainer.current, config);
-    
-    uitoolkit.onSessionClosed(() => {
-      console.log("session closed");
-      document.getElementById("join-flow")!.style.display = "block";
+    updateParticipants();
+    // Initialize media stream but don't need to store it
+    client.getMediaStream();
+
+    // Event listeners for participant and video changes
+    client.on("user-added", updateParticipants);
+    client.on("user-removed", updateParticipants);
+    client.on("video-active-change", updateParticipants);
+
+    const joinFlow = document.getElementById("join-flow");
+    if (joinFlow) {
+      joinFlow.style.display = "none";
+    }
+  }
+
+  // Update participant list and render video streams
+  function updateParticipants() {
+    if (!client || !sessionContainer.current) return;
+
+    const users = client.getAllUser().map(user => ({
+      userId: user.userId,
+      bVideoOn: user.bVideoOn
+    })) as User[];
+    setParticipants(users);
+
+    const stream = client.getMediaStream();
+    if (!stream) {
+      console.warn('No media stream available');
+      return;
+    }
+    const container = sessionContainer.current;
+    container.innerHTML = "";
+
+    users.forEach((user) => {
+      if (user.bVideoOn) {
+        const videoEl = document.createElement("video");
+        videoEl.id = `video-${user.userId}`;
+        videoEl.width = 320;
+        videoEl.height = 240;
+        videoEl.autoplay = true;
+        videoEl.muted = user.userId === client.getCurrentUserInfo().userId;
+        container.appendChild(videoEl);
+        stream.renderVideo(
+          videoEl,
+          user.userId,
+          320,
+          240,
+          0,
+          0,
+          VideoQuality.Video_90P
+        );
+      }
     });
-    
-    uitoolkit.onSessionDestroyed(() => {
-      console.log("session destroyed");
-      uitoolkit.destroy();
-    });
+  }
+
+  // Start cloud recording
+  async function startRecording() {
+    if (!client || isRecording) return;
+    try {
+      setIsRecordingLoading(true);
+      const recordingClient = client.getRecordingClient();
+      if (recordingClient && typeof recordingClient.startCloudRecording === 'function') {
+        await recordingClient.startCloudRecording();
+        setIsRecording(true);
+      } else {
+        throw new Error('Recording feature not available in this session');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Recording failed');
+      console.error(err);
+    } finally {
+      setIsRecordingLoading(false);
+    }
+  }
+
+  // Stop cloud recording
+  async function stopRecording() {
+    if (!client || !isRecording) return;
+    try {
+      setIsRecordingLoading(true);
+      const recordingClient = client.getRecordingClient();
+      if (recordingClient && typeof recordingClient.stopCloudRecording === 'function') {
+        await recordingClient.stopCloudRecording();
+        setIsRecording(false);
+      } else {
+        throw new Error('Recording feature not available in this session');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to stop recording');
+      console.error(err);
+    } finally {
+      setIsRecordingLoading(false);
+    }
   }
 
   return (
@@ -110,7 +224,7 @@ function App() {
             />
           </div>
           <div className="form-group">
-            <label>Session Password:</label> {}
+            <label>Session Password:</label>
             <input
               type="text"
               value={sessionPassword}
@@ -118,9 +232,31 @@ function App() {
               placeholder="Enter session password"
             />
           </div>
-          <button onClick={getVideoSDKJWT}>Join Session</button>
+          <button 
+            onClick={getVideoSDKJWT}
+            disabled={loading}
+          >
+            {loading ? 'Joining...' : 'Join Session'}
+          </button>
+          {error && <div className="error-message">{error}</div>}
         </div>
         <div id="sessionContainer" ref={sessionContainer}></div>
+        {client && (
+          <div className="recording-controls">
+            <button 
+              onClick={startRecording} 
+              disabled={isRecording || isRecordingLoading}
+            >
+              {isRecordingLoading ? 'Processing...' : 'Start Recording'}
+            </button>
+            <button 
+              onClick={stopRecording} 
+              disabled={!isRecording || isRecordingLoading}
+            >
+              {isRecordingLoading ? 'Processing...' : 'Stop Recording'}
+            </button>
+          </div>
+        )}
       </main>
     </div>
   );
