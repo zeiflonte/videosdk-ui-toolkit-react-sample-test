@@ -2,6 +2,9 @@ import React, { useRef, useState, useEffect } from "react";
 import ZoomVideo, { VideoQuality } from "@zoom/videosdk";
 import "./App.css";
 
+// Fixed UUID v4 for X-Device-Id header
+const DEVICE_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+
 // Environment variables configuration
 declare const process: {
   env: {
@@ -59,7 +62,11 @@ function App() {
       // 1) Login
       const loginRes = await fetch(loginEndpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        headers: { 
+          "Content-Type": "application/json", 
+          Accept: "application/json",
+          "X-Device-Id": DEVICE_ID
+        },
         body: JSON.stringify({ email: "il@test.by", password: "12345678" }),
         credentials: "include",
       });
@@ -87,6 +94,7 @@ function App() {
           "Content-Type": "application/json",
           Accept: "application/json",
           Authorization: `Bearer ${bearer}`,
+          "X-Device-Id": DEVICE_ID
         },
         body: JSON.stringify(payload),
       });
