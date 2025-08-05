@@ -9,8 +9,8 @@ const DEVICE_ID = '1baa4112-4c9e-4158-b7bb-52dd3c843ce8';
 function App() {
   const sessionContainer = useRef<HTMLDivElement | null>(null);
 
-  const loginEndpoint = "http://localhost/api/login";
-  const authEndpoint = "http://localhost/api/calls/signature";
+  const loginEndpoint = "https://fl.sub.by/api/login";
+  const authEndpoint = "https://fl.sub.by/api/calls/signature";
 
   const [sessionName, setSessionName] = useState<string>("");
   const [sessionPassword, setSessionPassword] = useState<string>(""); 
