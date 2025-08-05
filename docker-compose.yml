@@ -1,0 +1,36 @@
+services:
+  zoom-react-app:
+    build: .
+    container_name: zoom-react-app
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik_proxy
+      - traefik.http.routers.zoom-react-app.rule=Host(`fl.sub.by`) && PathPrefix(`/zoom`)
+      - traefik.http.services.zoom-react-app.loadbalancer.server.port=80
+
+      - traefik.http.middlewares.mywwwredirect.redirectregex.regex=^https://www\.(.*)
+      - traefik.http.middlewares.mywwwredirect.redirectregex.replacement=https://$${1}
+
+      - traefik.http.middlewares.zoom-slash.redirectregex.regex=^/zoom$
+      - traefik.http.middlewares.zoom-slash.redirectregex.replacement=/zoom/
+      - traefik.http.middlewares.zoom-slash.redirectregex.permanent=true
+
+#      - traefik.http.middlewares.zoom-stripprefix.stripprefix.prefixes=/zoom
+
+      - traefik.http.routers.zoom-react-app.middlewares=mywwwredirect,zoom-slash
+#,zoom-stripprefix
+    networks:
+      - web
+      - traefik_proxy
+    environment:
+      - TZ=UTC
+    restart: unless-stopped
+
+networks:
+  web:
+    external: true
+  internal:
+    driver: bridge
+  traefik_proxy:
+    name: traefik_proxy
+    external: true
