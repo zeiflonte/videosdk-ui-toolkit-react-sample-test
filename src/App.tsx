@@ -3,6 +3,9 @@ import uitoolkit, { CustomizationOptions } from "@zoom/videosdk-ui-toolkit";
 import "@zoom/videosdk-ui-toolkit/dist/videosdk-ui-toolkit.css";
 import "./App.css";
 
+// Generate a fixed UUID v4 for device identification
+const DEVICE_ID = '1baa4112-4c9e-4158-b7bb-52dd3c843ce8';
+
 function App() {
   const sessionContainer = useRef<HTMLDivElement | null>(null);
 
@@ -18,7 +21,11 @@ function App() {
     // 1) login
     const loginRes = await fetch(loginEndpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: { 
+        "Content-Type": "application/json", 
+        Accept: "application/json",
+        "X-Device-Id": DEVICE_ID
+      },
       body: JSON.stringify({ email: "il@test.by", password: "12345678" }),
       credentials: "include",
     });
@@ -45,6 +52,7 @@ function App() {
         "Content-Type": "application/json",
         Accept: "application/json",
         Authorization: `Bearer ${bearer}`,
+        "X-Device-Id": DEVICE_ID
       },
       body: JSON.stringify(payload),
     });
