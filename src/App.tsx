@@ -74,7 +74,7 @@ function App() {
       sessionName: sessionName.trim(), 
       sessionPasscode: sessionPassword.trim(),
       userName: "react",
-      sessionIdleTimeoutMins: 15, // Set timeout to 15 minutes or higher value as needed
+      sessionIdleTimeoutMins: 240, // Set timeout to X minutes or higher value as needed
       featuresOptions: {
         preview: { enable: true },
         virtualBackground: {
