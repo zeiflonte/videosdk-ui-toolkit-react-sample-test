@@ -16,6 +16,8 @@ function App() {
   const [sessionPassword, setSessionPassword] = useState<string>(""); 
   const [userIdentity, setUserIdentity] = useState<string>("1");
   const [role, setRole] = useState<number>(1);
+  const [email, setEmail] = useState<string>("il@test.by");
+  const [password, setPassword] = useState<string>("12345678");
 
   async function getVideoSDKJWT() {
     // 1) login
@@ -26,7 +28,7 @@ function App() {
         Accept: "application/json",
         "X-Device-Id": DEVICE_ID
       },
-      body: JSON.stringify({ email: "il@test.by", password: "12345678" }),
+      body: JSON.stringify({ email: email.trim(), password: password.trim() }),
       credentials: "include",
     });
     
@@ -108,6 +110,24 @@ function App() {
       <main>
         <div id="join-flow">
           <h1>Zoom Video SDK Sample React</h1>
+          <div className="form-group">
+            <label>Email:</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter email"
+            />
+          </div>
+          <div className="form-group">
+            <label>Password:</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter password"
+            />
+          </div>
           <div className="form-group">
             <label>Session Name:</label>
             <input
