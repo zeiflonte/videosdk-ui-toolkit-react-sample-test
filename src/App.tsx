@@ -14,8 +14,8 @@ function App() {
 
   const [sessionName, setSessionName] = useState<string>("");
   const [sessionPassword, setSessionPassword] = useState<string>(""); 
-
-  const role = 1;
+  const [userIdentity, setUserIdentity] = useState<string>("1");
+  const [role, setRole] = useState<number>(1);
 
   async function getVideoSDKJWT() {
     // 1) login
@@ -42,7 +42,7 @@ function App() {
       role,
       sessionName: sessionName.trim(),
       sessionKey: sessionPassword.trim(), // Передаем пароль как sessionKey
-      userIdentity: "1",
+      userIdentity: userIdentity.trim(),
       videoWebRtcMode: 1
     };
 
@@ -118,12 +118,32 @@ function App() {
             />
           </div>
           <div className="form-group">
-            <label>Session Password:</label> {}
+            <label>Session Password:</label>
             <input
               type="text"
               value={sessionPassword}
               onChange={(e) => setSessionPassword(e.target.value)}
               placeholder="Enter session password"
+            />
+          </div>
+          <div className="form-group">
+            <label>User Identity:</label>
+            <input
+              type="text"
+              value={userIdentity}
+              onChange={(e) => setUserIdentity(e.target.value)}
+              placeholder="Enter user identity"
+            />
+          </div>
+          <div className="form-group">
+            <label>Role:</label>
+            <input
+              type="number"
+              value={role}
+              onChange={(e) => setRole(Number(e.target.value))}
+              placeholder="Enter role (1 for host, 0 for participant)"
+              min="0"
+              max="1"
             />
           </div>
           <button onClick={getVideoSDKJWT}>Join Session</button>
