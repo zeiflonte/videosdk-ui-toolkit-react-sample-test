@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import uitoolkit, { CustomizationOptions } from "@zoom/videosdk-ui-toolkit";
 import "@zoom/videosdk-ui-toolkit/dist/videosdk-ui-toolkit.css";
 import "./App.css";
@@ -20,57 +20,86 @@ function App() {
   const [password, setPassword] = useState<string>("12345678");
   const [showForm, setShowForm] = useState<boolean>(true);
 
+  // Отладка: отслеживаем изменения showForm
+  useEffect(() => {
+    console.log("showForm changed to:", showForm);
+  }, [showForm]);
+
   async function getVideoSDKJWT() {
-    // 1) login
-    const loginRes = await fetch(loginEndpoint, {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json", 
-        Accept: "application/json",
-        "X-Device-Id": DEVICE_ID
-      },
-      body: JSON.stringify({ email: email.trim(), password: password.trim() }),
-      credentials: "include",
-    });
-    
-    const loginData = await loginRes.json();
-    const bearer = loginData[0]?.access_token;
-    if (!bearer) {
-      console.error("Login failed or no access_token");
-      return;
+    try {
+      // 1) login
+      const loginRes = await fetch(loginEndpoint, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json", 
+          Accept: "application/json",
+          "X-Device-Id": DEVICE_ID
+        },
+        body: JSON.stringify({ email: email.trim(), password: password.trim() }),
+        credentials: "include",
+      });
+      
+      if (!loginRes.ok) {
+        console.error("Login request failed:", loginRes.status);
+        return;
+      }
+
+      const loginData = await loginRes.json();
+      const bearer = loginData[0]?.access_token;
+      if (!bearer) {
+        console.error("Login failed or no access_token");
+        return;
+      }
+
+      // 2) Подготовка данных для подписи
+      const payload = {
+        role,
+        sessionName: sessionName.trim(),
+        sessionKey: sessionPassword.trim(), // Передаем пароль как sessionKey
+        userIdentity: userIdentity.trim(),
+        videoWebRtcMode: 1
+      };
+
+      const jwtRes = await fetch(authEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${bearer}`,
+          "X-Device-Id": DEVICE_ID
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!jwtRes.ok) {
+        console.error("JWT request failed:", jwtRes.status);
+        return;
+      }
+
+      const jwtData = await jwtRes.json();
+      if (!jwtData.signature) {
+        console.error("JWT fetch failed or no signature");
+        return;
+      }
+
+      // Скрываем форму сразу после успешного получения JWT
+      console.log("Hiding form, showForm will be set to false");
+      setShowForm(false);
+      console.log("Form hidden, joining session...");
+
+      joinSession(jwtData.signature);
+    } catch (error) {
+      console.error("Error in getVideoSDKJWT:", error);
+      setShowForm(true); // Показываем форму обратно при ошибке
     }
-
-    // 2) Подготовка данных для подписи
-    const payload = {
-      role,
-      sessionName: sessionName.trim(),
-      sessionKey: sessionPassword.trim(), // Передаем пароль как sessionKey
-      userIdentity: userIdentity.trim(),
-      videoWebRtcMode: 1
-    };
-
-    const jwtRes = await fetch(authEndpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `Bearer ${bearer}`,
-        "X-Device-Id": DEVICE_ID
-      },
-      body: JSON.stringify(payload),
-    });
-    
-    const jwtData = await jwtRes.json();
-    if (!jwtData.signature) {
-      console.error("JWT fetch failed or no signature");
-      return;
-    }
-
-    joinSession(jwtData.signature);
   }
 
   function joinSession(signature: string) {
-    if (!sessionContainer.current) return;
+    if (!sessionContainer.current) {
+      console.error("Session container not available");
+      setShowForm(true); // Показываем форму обратно при ошибке
+      return;
+    }
 
     const config: CustomizationOptions = {
       videoSDKJWT: signature,
@@ -93,9 +122,6 @@ function App() {
 
     console.log("Joining with config:", config);
     
-    // Скрываем форму после успешного логина
-    setShowForm(false);
-    
     uitoolkit.joinSession(sessionContainer.current, config);
     
     uitoolkit.onSessionClosed(() => {
@@ -113,11 +139,11 @@ function App() {
   return (
     <div className="App">
       <main>
-        {showForm && (
+        {showForm ? (
           <div id="join-flow">
             <h1>Zoom Video SDK Sample React</h1>
             <div className="form-group">
-              <label>Email:</label>
+              <label>E-mail:</label>
               <input
                 type="email"
                 value={email}
