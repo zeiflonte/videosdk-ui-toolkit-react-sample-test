@@ -18,6 +18,7 @@ function App() {
   const [role, setRole] = useState<number>(1);
   const [email, setEmail] = useState<string>("il@test.by");
   const [password, setPassword] = useState<string>("12345678");
+  const [showForm, setShowForm] = useState<boolean>(true);
 
   async function getVideoSDKJWT() {
     // 1) login
@@ -92,82 +93,88 @@ function App() {
 
     console.log("Joining with config:", config);
     
+    // Скрываем форму после успешного логина
+    setShowForm(false);
+    
     uitoolkit.joinSession(sessionContainer.current, config);
     
     uitoolkit.onSessionClosed(() => {
       console.log("session closed");
-      document.getElementById("join-flow")!.style.display = "block";
+      setShowForm(true);
     });
     
     uitoolkit.onSessionDestroyed(() => {
       console.log("session destroyed");
       uitoolkit.destroy();
+      setShowForm(true);
     });
   }
 
   return (
     <div className="App">
       <main>
-        <div id="join-flow">
-          <h1>Zoom Video SDK Sample React</h1>
-          <div className="form-group">
-            <label>Email:</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter email"
-            />
+        {showForm && (
+          <div id="join-flow">
+            <h1>Zoom Video SDK Sample React</h1>
+            <div className="form-group">
+              <label>Email:</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter email"
+              />
+            </div>
+            <div className="form-group">
+              <label>Password:</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter password"
+              />
+            </div>
+            <div className="form-group">
+              <label>Session Name:</label>
+              <input
+                type="text"
+                value={sessionName}
+                onChange={(e) => setSessionName(e.target.value)}
+                placeholder="Enter sessionName"
+              />
+            </div>
+            <div className="form-group">
+              <label>Session Password:</label>
+              <input
+                type="text"
+                value={sessionPassword}
+                onChange={(e) => setSessionPassword(e.target.value)}
+                placeholder="Enter session password"
+              />
+            </div>
+            <div className="form-group">
+              <label>User Identity:</label>
+              <input
+                type="text"
+                value={userIdentity}
+                onChange={(e) => setUserIdentity(e.target.value)}
+                placeholder="Enter user identity"
+              />
+            </div>
+            <div className="form-group">
+              <label>Role:</label>
+              <input
+                type="number"
+                value={role}
+                onChange={(e) => setRole(Number(e.target.value))}
+                placeholder="Enter role (1 for host, 0 for participant)"
+                min="0"
+                max="1"
+              />
+            </div>
+            <button onClick={getVideoSDKJWT}>Join Session</button>
           </div>
-          <div className="form-group">
-            <label>Password:</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter password"
-            />
-          </div>
-          <div className="form-group">
-            <label>Session Name:</label>
-            <input
-              type="text"
-              value={sessionName}
-              onChange={(e) => setSessionName(e.target.value)}
-              placeholder="Enter sessionName"
-            />
-          </div>
-          <div className="form-group">
-            <label>Session Password:</label>
-            <input
-              type="text"
-              value={sessionPassword}
-              onChange={(e) => setSessionPassword(e.target.value)}
-              placeholder="Enter session password"
-            />
-          </div>
-          <div className="form-group">
-            <label>User Identity:</label>
-            <input
-              type="text"
-              value={userIdentity}
-              onChange={(e) => setUserIdentity(e.target.value)}
-              placeholder="Enter user identity"
-            />
-          </div>
-          <div className="form-group">
-            <label>Role:</label>
-            <input
-              type="number"
-              value={role}
-              onChange={(e) => setRole(Number(e.target.value))}
-              placeholder="Enter role (1 for host, 0 for participant)"
-              min="0"
-              max="1"
-            />
-          </div>
-          <button onClick={getVideoSDKJWT}>Join Session</button>
-        </div>
+        )}
         <div id="sessionContainer" ref={sessionContainer}></div>
       </main>
     </div>
