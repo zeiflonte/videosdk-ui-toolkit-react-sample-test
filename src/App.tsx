@@ -139,7 +139,7 @@ function App() {
   return (
     <div className="App">
       <main>
-        {showForm ? (
+        {showForm && (
           <div id="join-flow">
             <h1>Zoom Video SDK Sample React</h1>
             <div className="form-group">
